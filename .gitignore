@@ -1,6 +1,7 @@
-*zip
-*png
-*jpg
+*.zip
+*.png
+*.jpg
+*.pth
 zips
 data
 iam_words
