@@ -30,8 +30,6 @@ import h5py
 from Helpers import Params
 
 from matplotlib import pyplot as plt
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}")
 
 
 class HandWritingDataset(datasets.ImageFolder):
