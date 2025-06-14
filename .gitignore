@@ -5,6 +5,6 @@
 *.h5
 *.csv
 zips
-data
-iam_words
-models
+./data
+./iam_words
+./models
