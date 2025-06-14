@@ -12,3 +12,4 @@ zips
 .idea
 __pycache__
 .ipynb_checkpoints
+!handwriting_transformer.pth
