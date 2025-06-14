@@ -183,4 +183,4 @@ dependencies:
       - torchvision==0.21.0
       - triton==3.2.0
       - tzdata==2025.1
-prefix: /home/jakub/miniconda3/envs/torch
+

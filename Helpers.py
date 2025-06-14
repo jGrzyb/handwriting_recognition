@@ -93,8 +93,8 @@ class ProgressBarWithLoss:
         progress = (batch_idx + 1) / self.total_batches
         filled_length = int(self.bar_length * progress)
         bar = '=' * filled_length + '-' * (self.bar_length - filled_length)
-        print(f"\rEpoch {epoch}/{self.total_epochs} [{bar}] {progress * 100:.2f}%   {elapsed_time:.2f}s   "
-              f"Train Loss: {train_loss:.4f}   {f'Val Loss: {val_loss:.4f}\n' if val_loss else ''}", end='')
+        val_str = f"Val Loss: {val_loss:.4f}\n" if val_loss else ''
+        print(f"Train Loss: {train_loss:.4f}   {val_str}", end='')
 
 
 class Validator:

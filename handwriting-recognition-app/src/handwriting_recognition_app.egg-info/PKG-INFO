@@ -1,0 +1,18 @@
+Metadata-Version: 2.1
+Name: handwriting-recognition-app
+Version: 0.1.0
+Summary: A handwriting recognition application using deep learning techniques.
+Author: Your Name
+Author-email: your.email@example.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Requires-Dist: torch
+Requires-Dist: torchvision
+Requires-Dist: opencv-python
+Requires-Dist: numpy
+Requires-Dist: matplotlib
+Requires-Dist: Pillow
+Requires-Dist: scikit-learn
+Requires-Dist: h5py

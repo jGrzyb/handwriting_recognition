@@ -1,3 +1,8 @@
+import matplotlib
+matplotlib.use('TkAgg')  # Or try 'Qt5Agg', 'agg'
+import matplotlib.pyplot as plt
+# ... your other imports and code ...
+
 # %% [markdown]
 # # Instruction
 # 
@@ -46,8 +51,6 @@ import random
 import h5py
 
 from matplotlib import pyplot as plt
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}")
 
 # %% [markdown]
 # # Params and Helpers
@@ -113,8 +116,11 @@ class ProgressBarWithLoss:
         progress = (batch_idx + 1) / self.total_batches
         filled_length = int(self.bar_length * progress)
         bar = '=' * filled_length + '-' * (self.bar_length - filled_length)
-        print(f"\rEpoch {epoch}/{self.total_epochs} [{bar}] {progress * 100:.2f}%   {elapsed_time:.2f}s   "
-              f"Train Loss: {train_loss:.4f}   {f'Val Loss: {val_loss:.4f}\n' if val_loss else ''}", end='')
+        val_loss_str = f"Val Loss: {val_loss:.4f}\n" if val_loss else ""
+        print(
+            f"\rEpoch {epoch}/{self.total_epochs} [{bar}] {progress * 100:.2f}%   {elapsed_time:.2f}s   Train Loss: {train_loss:.4f}   {val_loss_str}",
+            end='')
+
 
 # %%
 class Validator:
@@ -338,10 +344,6 @@ class H5Dataset:
 
         return WeightedRandomSampler(df['result'].values, len(df['result']))
 
-
-testing_dataset = H5Dataset('train_data.h5', 1)
-train_sampler = testing_dataset.create_h5_sampler(0)
-
 # %%
 def create_h5_dataset(size: int=10):
     if os.path.exists('train_data.h5'):
@@ -456,32 +458,6 @@ def create_sampler(dataset: datasets.ImageFolder, epsilon: float=0.004):
 # plt.show()
 
 # %%
-sampler_dataset = H5Dataset('small.h5', 20)
-
-dist_loader = DataLoader(
-    sampler_dataset,
-    batch_size=32,
-    num_workers=2,
-    sampler=sampler_dataset.create_h5_sampler(0),
-    collate_fn=collate_fn,
-)
-
-
-
-repeat = 1
-results = []
-for waiting in range(repeat):
-    for i, (ims, labels) in enumerate(dist_loader):
-        results.extend([Params.decode_string(i) for i in labels.tolist()])
-
-res_df = pd.DataFrame(results, columns=['word'])
-
-(res_df.value_counts() / repeat).plot(figsize=(20, 5), logy=True)
-plt.show()
-
-res_df = res_df['word'].apply(len).value_counts().sort_index() / repeat
-res_df.plot(ylim=(0, res_df.max() * 1.1), figsize=(20, 5))
-plt.show()
 
 # %% [markdown]
 # # Train test predict
@@ -591,21 +567,54 @@ class TLModel(nn.Module):
 # ### prep
 
 # %%
-augument = transforms.Compose([
-    transforms.RandomRotation(15, expand=True, fill=(255,)),
-    transforms.RandomAffine(0, translate=(0.05, 0.05), fill=(255,)),
-    transforms.RandomPerspective(distortion_scale=0.5, p=0.5, fill=(255,)),
-    transforms.GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)),
-    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
-])
 
-transform = transforms.Compose([
-    # transforms.Grayscale(num_output_channels=1),
-    transforms.Resize((64, 128)),
-    transforms.ToTensor(),
-    transforms.Lambda(lambda x: 1.0 - x),
-    transforms.Normalize((0.5,), (0.5,)),
-])
+if __name__ == '__main__':
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+
+    testing_dataset = H5Dataset('train_data.h5', 1)
+    train_sampler = testing_dataset.create_h5_sampler(0)
+
+    sampler_dataset = H5Dataset('small.h5', 20)
+
+    dist_loader = DataLoader(
+        sampler_dataset,
+        batch_size=32,
+        num_workers=2,
+        sampler=sampler_dataset.create_h5_sampler(0),
+        collate_fn=collate_fn,
+    )
+
+    repeat = 1
+    results = []
+    for waiting in range(repeat):
+        for i, (ims, labels) in enumerate(dist_loader):
+            results.extend([Params.decode_string(i) for i in labels.tolist()])
+
+    res_df = pd.DataFrame(results, columns=['word'])
+
+    (res_df.value_counts() / repeat).plot(figsize=(20, 5), logy=True)
+    plt.show()
+
+    res_df = res_df['word'].apply(len).value_counts().sort_index() / repeat
+    res_df.plot(ylim=(0, res_df.max() * 1.1), figsize=(20, 5))
+    plt.show()
+
+    augument = transforms.Compose([
+        transforms.RandomRotation(15, expand=True, fill=(255,)),
+        transforms.RandomAffine(0, translate=(0.05, 0.05), fill=(255,)),
+        transforms.RandomPerspective(distortion_scale=0.5, p=0.5, fill=(255,)),
+        transforms.GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)),
+        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+    ])
+
+    transform = transforms.Compose([
+        # transforms.Grayscale(num_output_channels=1),
+        transforms.Resize((64, 128)),
+        transforms.ToTensor(),
+        transforms.Lambda(lambda x: 1.0 - x),
+        transforms.Normalize((0.5,), (0.5,)),
+    ])
 
 # %%
 # train_dataset = HandWritingDataset(root='words_data/train', transform=transform, label_transofrm=Params.encode_string, augument=augument)
@@ -613,51 +622,51 @@ transform = transforms.Compose([
 # test_dataset = HandWritingDataset(root='words_data/test', transform=transform, label_transofrm=Params.encode_string)
 
 # %%
-train_dataset = H5Dataset('dataset.h5', 100)
-val_dataset = HandWritingDataset(root='words_data/val', transform=transform, label_transofrm=Params.encode_string)
+    train_dataset = H5Dataset('dataset.h5', 100)
+    val_dataset = HandWritingDataset(root='words_data/val', transform=transform, label_transofrm=Params.encode_string)
 
 # %%
-train_loader = DataLoader(train_dataset, batch_size=64, num_workers=4, shuffle=True, collate_fn=collate_fn)
-val_loader = DataLoader(val_dataset, batch_size=64, num_workers=4, shuffle=True, collate_fn=collate_fn)
+    train_loader = DataLoader(train_dataset, batch_size=64, num_workers=4, shuffle=True, collate_fn=collate_fn)
+    val_loader = DataLoader(val_dataset, batch_size=64, num_workers=4, shuffle=True, collate_fn=collate_fn)
 
 # train_loader = DataLoader(val_dataset, batch_size=64, num_workers=4, collate_fn=collate_fn, sampler=create_sampler(val_dataset))
 # val_loader = DataLoader(test_dataset, batch_size=64, num_workers=4, collate_fn=collate_fn)
 
 # %%
-model = TLModel(hidden_size=1024).to(device)
-criterion = nn.CTCLoss(blank=0, reduction='mean', zero_infinity=True)
-optimizer = optim.Adam(model.parameters(), lr=1e-3)
-# scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1)
-early_stopping = EarlyStopping(patience=5)
-history = History()
+    model = TLModel(hidden_size=1024).to(device)
+    criterion = nn.CTCLoss(blank=0, reduction='mean', zero_infinity=True)
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1)
+    early_stopping = EarlyStopping(patience=5)
+    history = History()
 
 # %% [markdown]
 # ### Train
 
 # %%
-for i in range(1):
-    train_dataset = H5Dataset('dataset.h5', 1)
-    # train_dataset.current_epoch = i % 2
-    train_loader = DataLoader(train_dataset, batch_size=64, num_workers=4, sampler=train_dataset.create_h5_sampler(0), collate_fn=collate_fn)
-    train(model, train_loader, val_loader, optimizer, criterion, epochs=1, early_stopping=early_stopping, history=history)
+    for i in range(1):
+        train_dataset = H5Dataset('dataset.h5', 1)
+        # train_dataset.current_epoch = i % 2
+        train_loader = DataLoader(train_dataset, batch_size=64, num_workers=4, sampler=train_dataset.create_h5_sampler(0), collate_fn=collate_fn)
+        train(model, train_loader, val_loader, optimizer, criterion, epochs=1, early_stopping=early_stopping, history=history)
 
-# %%
-for param in model.cnn.parameters():
-    param.requires_grad = True
-optimizer = optim.Adam(model.parameters(), lr=1e-4)
-for i in range(1):
-    train_dataset = H5Dataset('dataset.h5', 1)
-    # train_dataset.current_epoch = 1
-    train_loader = DataLoader(train_dataset, batch_size=64, num_workers=4, sampler=train_dataset.create_h5_sampler(0), collate_fn = collate_fn)
-    train(model, train_loader, val_loader, optimizer, criterion, epochs=1, early_stopping=early_stopping, history=history)
+    # %%
+    for param in model.cnn.parameters():
+        param.requires_grad = True
+    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    for i in range(1):
+        train_dataset = H5Dataset('dataset.h5', 1)
+        # train_dataset.current_epoch = 1
+        train_loader = DataLoader(train_dataset, batch_size=64, num_workers=4, sampler=train_dataset.create_h5_sampler(0), collate_fn = collate_fn)
+        train(model, train_loader, val_loader, optimizer, criterion, epochs=1, early_stopping=early_stopping, history=history)
 
-raise Exception("This is a custom exception message.")
+    raise Exception("This is a custom exception message.")
 
-# %%
-predict_loader = DataLoader(train_dataset, batch_size=1, shuffle=True, num_workers=4, collate_fn=collate_fn)
-predictions = predict(model, predict_loader, 100)
-for pred, label in predictions:
-    print(f"{pred}  -  {label}")
+    # %%
+    predict_loader = DataLoader(train_dataset, batch_size=1, shuffle=True, num_workers=4, collate_fn=collate_fn)
+    predictions = predict(model, predict_loader, 100)
+    for pred, label in predictions:
+        print(f"{pred}  -  {label}")
 
 # %% [markdown]
 # # Tuning
@@ -715,19 +724,19 @@ for pred, label in predictions:
 # # Visual
 
 # %%
-visual_dataset = HandWritingDataset(root='words_data/train', transform=transform, label_transofrm=Params.encode_string, augument=augument)
-visual_loader = DataLoader(visual_dataset, batch_size=16, num_workers=4, sampler=create_sampler(visual_dataset), collate_fn=collate_fn)
+    visual_dataset = HandWritingDataset(root='words_data/train', transform=transform, label_transofrm=Params.encode_string, augument=augument)
+    visual_loader = DataLoader(visual_dataset, batch_size=16, num_workers=4, sampler=create_sampler(visual_dataset), collate_fn=collate_fn)
 
-images, labels = next(iter(visual_loader))
+    images, labels = next(iter(visual_loader))
 
-fig, axes = plt.subplots(4, 4, figsize=(12, 8))
-for i, ax in enumerate(axes.flatten()):
-    if i >= len(images):
-        break
-    ax.imshow(images[i][0].cpu(), cmap='gray', aspect=1)
-    ax.set_title(Params.decode_string(labels[i].tolist()))
-    ax.axis('off')
-plt.tight_layout()
-plt.show()
+    fig, axes = plt.subplots(4, 4, figsize=(12, 8))
+    for i, ax in enumerate(axes.flatten()):
+        if i >= len(images):
+            break
+        ax.imshow(images[i][0].cpu(), cmap='gray', aspect=1)
+        ax.set_title(Params.decode_string(labels[i].tolist()))
+        ax.axis('off')
+    plt.tight_layout()
+    plt.show()
 
 

@@ -1,0 +1,11 @@
+README.md
+setup.py
+src/detection/__init__.py
+src/detection/word_detector.py
+src/handwriting_recognition_app.egg-info/PKG-INFO
+src/handwriting_recognition_app.egg-info/SOURCES.txt
+src/handwriting_recognition_app.egg-info/dependency_links.txt
+src/handwriting_recognition_app.egg-info/requires.txt
+src/handwriting_recognition_app.egg-info/top_level.txt
+src/models/__init__.py
+src/models/transformer.py

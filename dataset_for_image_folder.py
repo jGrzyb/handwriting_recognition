@@ -42,7 +42,7 @@ words = words[18:-1]
 words = [w for w in words if ' err ' not in w]
 words = [[w.split(' ')[0], w.split(' ')[-1]] for w in words]
 words = [
-    [f'iam_words/words/{w.split('-')[0]}/{w.split('-')[0]}-{w.split('-')[1]}/{w}.png', y] for w, y in words]
+    [f'iam_words/words/{w.split("-")[0]}/{w.split("-")[0]}-{w.split("-")[1]}/{w}.png', y] for w, y in words]
 df = pd.DataFrame(words, columns=['filename', 'word'])
 df = df[df['filename'].apply(os.path.exists)]
 
