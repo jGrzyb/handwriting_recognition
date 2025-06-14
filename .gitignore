@@ -9,3 +9,6 @@ zips
 ./data
 ./iam_words
 ./models
+.idea
+__pycache__
+.ipynb_checkpoints
