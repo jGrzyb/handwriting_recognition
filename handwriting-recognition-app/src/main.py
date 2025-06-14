@@ -15,41 +15,48 @@ import torch.nn as nn
 from utils.progress_bar import ProgressBar # Import ProgressBar
 import cv2
 import threading
+from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 
 # Process detections through the handwriting recognition model
-def predict_from_detections(detections, model, transform):
+def predict_from_detections(detections, model, processor):
     model.eval()
     results = []
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     with torch.no_grad():
         for det in detections:
-            # Convert the detected word image to PIL format
-            word_img = Image.fromarray(det.img)
+            image = Image.fromarray(det.img)
+            pixel_values = processor(image, return_tensors='pt').pixel_values.to(device)
+
+            generated_ids = model.generate(pixel_values)
+            generated_text = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+            pred_text = generated_text.strip()
+            # # Convert the detected word image to PIL format
+            # word_img = Image.fromarray(det.img)
             
-            # Apply the same transformations used during training
-            img_tensor = transform(word_img).unsqueeze(0).to(device)
+            # # Apply the same transformations used during training
+            # img_tensor = transform(word_img).unsqueeze(0).to(device)
             
-            # Start with the SOS token
-            input_token = torch.tensor([[27]]).to(device)
+            # # Start with the SOS token
+            # input_token = torch.tensor([[27]]).to(device)q
             
-            # Generate tokens one by one
-            generated_tokens = [27]  # Start with SOS token
-            max_length = 20  # Set maximum word length
+            # # Generate tokens one by one
+            # generated_tokens = [27]  # Start with SOS token
+            # max_length = 20  # Set maximum word length
             
-            for _ in range(max_length):
-                output = model(img_tensor, input_token)
-                next_token = output[0, -1].argmax().item()
-                generated_tokens.append(next_token)
+            # for _ in range(max_length):
+            #     output = model(img_tensor, input_token)
+            #     next_token = output[0, -1].argmax().item()
+            #     generated_tokens.append(next_token)
                 
-                # Stop if we reach EOS token
-                if next_token == 28:
-                    break
+            #     # Stop if we reach EOS token
+            #     if next_token == 28:
+            #         break
                 
-                # Update input token for next prediction
-                input_token = torch.cat([input_token, torch.tensor([[next_token]]).to(device)], dim=1)
+            #     # Update input token for next prediction
+            #     input_token = torch.cat([input_token, torch.tensor([[next_token]]).to(device)], dim=1)
             
-            # Convert tokens to text
-            pred_text = Params.decode_string([i for i in generated_tokens if i not in [27, 28]])
+            # # Convert tokens to text
+            # pred_text = Params.decode_string([i for i in generated_tokens if i not in [27, 28]])
             results.append((det.bbox, pred_text))
     
     return results
@@ -60,27 +67,30 @@ def capture_video(output_file='output.mp4', frame_width=640, frame_height=480, f
     from torchvision import transforms
     import cv2
 
-    vocab_size = len(Params.vocab) + 2
-    model = HandwritingTransformer(
-        input_size=16 * 24,
-        vocab_size=vocab_size,
-        d_model=128,
-        nhead_en=1,
-        num_layers_en=1,
-        nhead_de=1,
-        num_layers_de=1,
-        dropout=0.2
-    ).to(device)
-    model.load_state_dict(torch.load(
-        'handwriting_transformer.pth', map_location=device))
-    model.eval()
-    transform = transforms.Compose([
-        transforms.Grayscale(num_output_channels=1),
-        transforms.Resize((64, 128)),
-        transforms.ToTensor(),
-        transforms.Lambda(lambda x: 1.0 - x),
-        transforms.Normalize((0.5,), (0.5,)),
-    ])
+    processor = TrOCRProcessor.from_pretrained('microsoft/trocr-base-handwritten')
+    model = VisionEncoderDecoderModel.from_pretrained('microsoft/trocr-base-handwritten').to(device)
+
+    # vocab_size = len(Params.vocab) + 2
+    # model = HandwritingTransformer(
+    #     input_size=16 * 24,
+    #     vocab_size=len(Params.vocab)+2,
+    #     d_model=128,
+    #     nhead_en=1,
+    #     num_layers_en=1,
+    #     nhead_de=1,
+    #     num_layers_de=1,
+    #     dropout=0.2
+    # ).to(device)
+    # model.load_state_dict(torch.load(
+    #     'handwriting_transformer.pth', map_location=device))
+    # model.eval()
+    # transform = transforms.Compose([
+    #     transforms.Grayscale(num_output_channels=1),
+    #     transforms.Resize((64, 128)),
+    #     transforms.ToTensor(),
+    #     transforms.Lambda(lambda x: 1.0 - x),
+    #     transforms.Normalize((0.5,), (0.5,)),
+    # ])
 
     cam = cv2.VideoCapture(0)
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
@@ -100,7 +110,7 @@ def capture_video(output_file='output.mp4', frame_width=640, frame_height=480, f
                 detections = detections_to_process
 
             # Run predictions
-            predictions = predict_from_detections(detections, model, transform)
+            predictions = predict_from_detections(detections, model, processor)
 
             with lock:
                 shared_predictions = predictions
