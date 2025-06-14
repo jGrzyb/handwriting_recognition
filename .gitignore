@@ -4,6 +4,7 @@
 *.pth
 *.h5
 *.csv
+*.mp4
 zips
 ./data
 ./iam_words
