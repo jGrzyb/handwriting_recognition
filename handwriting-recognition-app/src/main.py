@@ -63,7 +63,7 @@ def capture_video(output_file='output.mp4', frame_width=640, frame_height=480, f
     vocab_size = len(Params.vocab) + 2
     model = HandwritingTransformer(
         input_size=16 * 24,
-        vocab_size=vocab_size,
+        vocab_size=len(Params.vocab)+2,
         d_model=128,
         nhead_en=1,
         num_layers_en=1,
