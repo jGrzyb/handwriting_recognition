@@ -1,10 +1,27 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox
-from PIL import Image, ImageTk
-import cv2
-import numpy as np
 import threading
 import time
+
+import cv2
+import numpy as np
+from PIL import Image, ImageTk
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
+from torchvision import transforms
+from transformers import TrOCRProcessor, VisionEncoderDecoderModel
+
+from data.dataset import H5Dataset, HandWritingDataset
+from detection.word_detector import prepare_img, detect, sort_line
+from models.transformer import HandwritingTransformer
+from training.early_stopping import EarlyStopping
+from training.trainer import train
+from training.validator import ValidatorWithOutputs
+from utils.history import TrainingHistory
+from utils.params import Params
+from utils.progress_bar import ProgressBar
 
 class UltraKillerAPP:
     def __init__(self, master):
@@ -40,15 +57,21 @@ class UltraKillerAPP:
         self.original_image_label = tk.Label(self.image_frame)
         self.original_image_label.grid(row=1, column=0, padx=5, pady=5)
 
-        # Processed Image Label
-        self.processed_label_text = tk.Label(self.image_frame, text="Processed Image")
-        self.processed_label_text.grid(row=0, column=1, pady=5)
-        self.processed_image_label = tk.Label(self.image_frame)
-        self.processed_image_label.grid(row=1, column=1, padx=5, pady=5)
+        # Detected Text Label
+        self.processed_label_text = tk.Label(self.image_frame, text="Detected Text:")
+        self.processed_label_text.grid(row=0, column=1, pady=5, sticky="w")  # Align left
 
-        # Configure grid for resizing
-        self.image_frame.grid_rowconfigure(1, weight=1)
-        self.image_frame.grid_columnconfigure(0, weight=1)
+        self.detected_text = tk.Text(self.image_frame, wrap=tk.WORD, height=10, width=40)
+        self.detected_text.grid(row=1, column=1, padx=5, pady=5, sticky="nsew")
+
+        self.detected_text.config(state=tk.DISABLED)  # Make it read-only
+
+        # Scrollbar for the text area
+        self.scrollbar = tk.Scrollbar(self.image_frame, command=self.detected_text.yview)
+        self.scrollbar.grid(row=1, column=2, sticky="ns")
+        self.detected_text['yscrollcommand'] = self.scrollbar.set
+
+        # Configure column weight so the text area expands
         self.image_frame.grid_columnconfigure(1, weight=1)
 
     def load_image(self):
@@ -185,12 +208,21 @@ class UltraKillerAPP:
         if original_image is None:
             self.original_image_label.config(image='')
             self.original_image_label.image = None
-            self.processed_image_label.config(image='')
-            self.processed_image_label.image = None
+            self.detected_text.config(state=tk.NORMAL)
+            self.detected_text.delete("1.0", tk.END)
+            self.detected_text.config(state=tk.DISABLED)
             return
 
         # Display original image
         self._display_frame(original_image, self.original_image_label)
+
+    def display_text(self, text):
+        """Displays the detected text in the text area."""
+        self.detected_text.config(state=tk.NORMAL)  # Enable editing
+        self.detected_text.delete("1.0", tk.END)  # Clear existing text
+        self.detected_text.insert(tk.END, text)  # Insert new text
+        self.detected_text.config(state=tk.DISABLED)  # Disable editing
+
 
 # --- Main Application Execution ---
 if __name__ == "__main__":
