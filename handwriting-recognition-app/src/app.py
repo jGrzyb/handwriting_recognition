@@ -6,6 +6,7 @@ import time
 import cv2
 import numpy as np
 from PIL import Image, ImageTk
+import pytesseract
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -23,10 +24,31 @@ from utils.history import TrainingHistory
 from utils.params import Params
 from utils.progress_bar import ProgressBar
 
+def predict_from_detections(detections, model, processor):
+    model.eval()
+    results = []
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    with torch.no_grad():
+        for det in detections:
+            image = Image.fromarray(det.img)
+            # print(image)
+            pixel_values = processor(image, return_tensors='pt').pixel_values.to(device)
+
+            generated_ids = model.generate(pixel_values)
+            generated_text = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+            pred_text = generated_text.strip()
+            results.append((det.bbox, pred_text))
+    
+    return results
+
 class UltraKillerAPP:
     def __init__(self, master):
         self.master = master
         master.title("Image Processing App")
+
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.processor = TrOCRProcessor.from_pretrained('microsoft/trocr-small-handwritten', use_fast=True)
+        self.model = VisionEncoderDecoderModel.from_pretrained('microsoft/trocr-small-handwritten').to(self.device)
 
         self.camera_on = False
         self.cap = None
@@ -46,6 +68,9 @@ class UltraKillerAPP:
 
         self.take_photo_button = tk.Button(self.button_frame, text="Take Photo", command=self.take_photo, state=tk.DISABLED)
         self.take_photo_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        self.detect_text_button = tk.Button(self.button_frame, text="Detect Text", command=self.detect_text, state=tk.DISABLED)
+        self.detect_text_button.pack(side=tk.LEFT, padx=5, pady=5)
 
         # Frame for image display
         self.image_frame = tk.Frame(master, borderwidth=2, relief="groove")
@@ -174,7 +199,8 @@ class UltraKillerAPP:
         else: # Grayscale image
             img_rgb = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
 
-        self.image_to_predict = img_rgb.copy()  # Store the image for prediction if needed
+        self.image_to_predict = img_rgb.copy() # Store the image for prediction if needed
+        self.detect_text_button.config(state=tk.NORMAL)  # Enable the detect text button
         # Convert NumPy array to PIL Image
         img_pil = Image.fromarray(img_rgb)
         
@@ -215,6 +241,32 @@ class UltraKillerAPP:
 
         # Display original image
         self._display_frame(original_image, self.original_image_label)
+
+    def detect_text(self):
+        if self.image_to_predict is None:
+            messagebox.showwarning("Warning", "No image to process. Please load an image or take a photo first.")
+            return
+        img = prepare_img(self.image_to_predict, self.image_to_predict.shape[0])
+
+
+        data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
+        n_boxes = len(data['text'])
+        current_line = data['line_num'][0] if n_boxes > 0 else -1
+        line_words = []
+        text = ""
+        self.display_text("")
+        for i in range(n_boxes):
+            if int(data['conf'][i]) > 0:  # Ignore low-confidence words
+                word = data['text'][i].strip()
+                if word:
+                    if data['line_num'][i] != current_line:
+                        # End of the previous line
+                        text += " ".join(line_words) + "\n"
+                        current_line = data['line_num'][i]
+
+        self.display_text(text)  # Display the detected text in the text area
+
+        return
 
     def display_text(self, text):
         """Displays the detected text in the text area."""
