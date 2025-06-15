@@ -2,20 +2,25 @@ from typing import List, Tuple
 import cv2
 import numpy as np
 
-def prepare_img(image: np.ndarray, target_height: int) -> np.ndarray:
+def prepare_img(image: np.ndarray, target_height: int, kernel_size: int, sigma: int) -> np.ndarray:
     height, width = image.shape[:2]
     aspect_ratio = width / height
     new_width = int(target_height * aspect_ratio)
     resized_img = cv2.resize(image, (new_width, target_height))
-    return resized_img
+    gray = cv2.cvtColor(resized_img, cv2.COLOR_BGR2GRAY)
+    # blurred = cv2.GaussianBlur(gray, (kernel_size, kernel_size), sigma)
+    median = cv2.medianBlur(gray, kernel_size+4)
+    binary = cv2.adaptiveThreshold(median, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
+    dilated = cv2.dilate(binary, np.ones((kernel_size, kernel_size), np.uint8), iterations=1)
+    eroded = cv2.erode(dilated, np.ones((kernel_size, kernel_size), np.uint8), iterations=1)
 
-def detect(image: np.ndarray, kernel_size: int, sigma: int, theta: int, min_area: int) -> List:
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.GaussianBlur(gray, (kernel_size, kernel_size), sigma)
-    binary = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
+    
 
+    return eroded
+
+def detect(image: np.ndarray, min_area: int) -> List:
     # Find contours
-    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     detections = []
 
     for contour in contours:

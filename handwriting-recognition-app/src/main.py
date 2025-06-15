@@ -64,12 +64,10 @@ def predict_from_detections(detections, model, processor):
 
 def capture_video(output_file='output.mp4', frame_width=640, frame_height=480, fps=20.0):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    from torchvision import transforms
-    import cv2
 
     processor = TrOCRProcessor.from_pretrained('microsoft/trocr-base-handwritten')
     model = VisionEncoderDecoderModel.from_pretrained('microsoft/trocr-base-handwritten').to(device)
-
+    
     # vocab_size = len(Params.vocab) + 2
     # model = HandwritingTransformer(
     #     input_size=16 * 24,
@@ -126,24 +124,26 @@ def capture_video(output_file='output.mp4', frame_width=640, frame_height=480, f
             break
 
         out.write(frame)
-        img = prepare_img(frame, frame.shape[0])
-        detections = detect(img, kernel_size=3, sigma=1, theta=7, min_area=100)
+        img = prepare_img(frame, frame.shape[0], kernel_size=3, sigma=1)
+        detections = detect(img, min_area=100)
 
-        # Update detections for the worker thread
-        with lock:
-            detections_to_process = detections
+        if len(detections) != 0:
+            # Update detections for the worker thread
+            with lock:
+                detections_to_process = detections
 
-        # Display results with bounding boxes and predicted text
-        with lock:
-            if shared_predictions is not None:
-                for bbox, text in shared_predictions:
-                    x1, y1, w, h = bbox.x, bbox.y, bbox.w, bbox.h
-                    cv2.rectangle(frame, (x1, y1),
-                                  (x1 + w, y1 + h), (0, 255, 0), 2)
-                    cv2.putText(frame, text, (x1, y1 - 10),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+            # Display results with bounding boxes and predicted text
+            with lock:
+                if shared_predictions is not None:
+                    for bbox, text in shared_predictions:
+                        print(f"Detected: {text} at {bbox.x}, {bbox.y}, {bbox.w}, {bbox.h}")
+                        x1, y1, w, h = bbox.x, bbox.y, bbox.w, bbox.h
+                        cv2.rectangle(frame, (x1, y1),
+                                    (x1 + w, y1 + h), (0, 255, 0), 2)
+                        cv2.putText(frame, text, (x1, y1 - 10),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
-        cv2.imshow('Camera', frame)
+        cv2.imshow('Camera', img)
 
         if cv2.waitKey(1) == ord('q'):
             break
