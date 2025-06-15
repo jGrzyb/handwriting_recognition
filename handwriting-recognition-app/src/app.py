@@ -90,7 +90,7 @@ class UltraKillerAPP:
         self.detected_text = tk.Text(self.image_frame, wrap=tk.WORD, height=10, width=40)
         self.detected_text.grid(row=1, column=1, padx=5, pady=5, sticky="nsew")
 
-        self.detected_text.config(state=tk.DISABLED)  # Make it read-only
+        self.detected_text.config(state=tk.NORMAL)  # Make it read-only
 
         # Scrollbar for the text area
         self.scrollbar = tk.Scrollbar(self.image_frame, command=self.detected_text.yview)
@@ -235,7 +235,7 @@ class UltraKillerAPP:
             self.original_image_label.image = None
             self.detected_text.config(state=tk.NORMAL)
             self.detected_text.delete("1.0", tk.END)
-            self.detected_text.config(state=tk.DISABLED)
+            self.detected_text.config(state=tk.NORMAL)
             return
 
         # Display original image
@@ -275,7 +275,7 @@ class UltraKillerAPP:
         self.detected_text.config(state=tk.NORMAL)  # Enable editing
         self.detected_text.delete("1.0", tk.END)  # Clear existing text
         self.detected_text.insert(tk.END, text)  # Insert new text
-        self.detected_text.config(state=tk.DISABLED)  # Disable editing
+        self.detected_text.config(state=tk.NORMAL)  # Disable editing
 
 
 # --- Main Application Execution ---
