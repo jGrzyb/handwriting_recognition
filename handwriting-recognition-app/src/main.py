@@ -124,7 +124,7 @@ def capture_video(output_file='output.mp4', frame_width=640, frame_height=480, f
             break
 
         out.write(frame)
-        img = prepare_img(frame, frame.shape[0], kernel_size=3, sigma=1)
+        img = prepare_img(frame, frame.shape[0])
         detections = detect(img, min_area=100)
 
         if len(detections) != 0:

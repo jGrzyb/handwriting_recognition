@@ -2,19 +2,22 @@ from typing import List, Tuple
 import cv2
 import numpy as np
 
-def prepare_img(image: np.ndarray, target_height: int, kernel_size: int, sigma: int) -> np.ndarray:
+def prepare_img(image: np.ndarray, target_height: int) -> np.ndarray:
     height, width = image.shape[:2]
     aspect_ratio = width / height
     new_width = int(target_height * aspect_ratio)
     resized_img = cv2.resize(image, (new_width, target_height))
     gray = cv2.cvtColor(resized_img, cv2.COLOR_BGR2GRAY)
-    # blurred = cv2.GaussianBlur(gray, (kernel_size, kernel_size), sigma)
+    #dla kamerki
     binary = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
-    median = cv2.medianBlur(binary, kernel_size+2)
-    
-    dilated = cv2.dilate(median, np.ones((kernel_size, kernel_size), np.uint8), iterations=1)
-    eroded = cv2.erode(dilated, np.ones((kernel_size, kernel_size), np.uint8), iterations=1)
 
+    kernel_small = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+    kernel_large = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+
+    median = cv2.medianBlur(binary, kernel_large.shape[0])
+    
+    opened = cv2.morphologyEx(median, cv2.MORPH_OPEN, kernel_small, iterations=1)
+    eroded = cv2.erode(opened, kernel_small, iterations=1)
     
 
     return eroded
