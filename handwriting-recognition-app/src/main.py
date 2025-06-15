@@ -128,7 +128,7 @@ def capture_video(output_file='output.mp4', frame_width=640, frame_height=480, f
         img = prepare_img(frame, frame.shape[0])
         detections = detect(img, min_area=50)
 
-        if False: #if len(detections) > 0:
+        if len(detections) > 0:
             # print(f"Detected {len(detections)} words")
             # Update detections for the worker thread
             with lock:
@@ -145,10 +145,10 @@ def capture_video(output_file='output.mp4', frame_width=640, frame_height=480, f
                                     (x1 + w, y1 + h), (0, 255, 0), 2)
                         cv2.putText(frame, text, (x1, y1 - 10),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
-        for detection in detections:
-            bhox = detection.bhox
-            x1, y1, w, h = bbox.x, bbox.y, bbox.w, bbox.h
-            cv2.rectangle(frame, (x1, y1),(x1 + w, y1 + h), (0, 255, 0), 2)
+        # for detection in detections:
+        #     bhox = detection.bhox
+        #     x1, y1, w, h = bbox.x, bbox.y, bbox.w, bbox.h
+        #     cv2.rectangle(frame, (x1, y1),(x1 + w, y1 + h), (0, 255, 0), 2)
         cv2.imshow('Camera', frame)
 
         if cv2.waitKey(1) == ord('q'):
