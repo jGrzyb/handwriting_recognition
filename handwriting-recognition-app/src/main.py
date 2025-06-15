@@ -16,6 +16,25 @@ from utils.progress_bar import ProgressBar # Import ProgressBar
 import cv2
 import threading
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
+import pytesseract
+from PIL import ImageDraw, ImageFont
+import numpy as np
+
+import argostranslate.package
+import argostranslate.translate
+
+from_code = "en"
+to_code = "pl"
+
+# Download and install Argos Translate package
+argostranslate.package.update_package_index()
+available_packages = argostranslate.package.get_available_packages()
+package_to_install = next(
+    filter(
+        lambda x: x.from_code == from_code and x.to_code == to_code, available_packages
+    )
+)
+argostranslate.package.install_from_path(package_to_install.download())
 
 # Process detections through the handwriting recognition model
 def predict_from_detections(detections, model, processor):
@@ -64,105 +83,179 @@ def predict_from_detections(detections, model, processor):
 
 
 def capture_video(output_file='output.mp4', frame_width=640, frame_height=480, fps=20.0):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    shared_input = None
+    shared_data = None  # Store the last available data
+    shared_is_working = True
+    inlock = threading.Lock()
+    datalock = threading.Lock()
 
-    processor = TrOCRProcessor.from_pretrained('microsoft/trocr-small-handwritten', use_fast=False)
-    model = VisionEncoderDecoderModel.from_pretrained('microsoft/trocr-small-handwritten').to(device)
-    
-    # vocab_size = len(Params.vocab) + 2
-    # model = HandwritingTransformer(
-    #     input_size=16 * 24,
-    #     vocab_size=len(Params.vocab)+2,
-    #     d_model=128,
-    #     nhead_en=1,
-    #     num_layers_en=1,
-    #     nhead_de=1,
-    #     num_layers_de=1,
-    #     dropout=0.2
-    # ).to(device)
-    # model.load_state_dict(torch.load(
-    #     'handwriting_transformer.pth', map_location=device))
-    # model.eval()
-    # transform = transforms.Compose([
-    #     transforms.Grayscale(num_output_channels=1),
-    #     transforms.Resize((64, 128)),
-    #     transforms.ToTensor(),
-    #     transforms.Lambda(lambda x: 1.0 - x),
-    #     transforms.Normalize((0.5,), (0.5,)),
-    # ])
+    def read_worker():
+        nonlocal shared_input, shared_data, shared_is_working
+        while shared_is_working:
+            with inlock:
+                if shared_input is None:
+                    continue
+                image = shared_input.copy()  # Copy quickly and release the lock
+
+            # Perform OCR asynchronously
+            data = pytesseract.image_to_data(
+                image, output_type=pytesseract.Output.DICT)
+            
+            for i in range(len(data['text'])):
+                data['text'][i] = argostranslate.translate.translate(data['text'][i], from_code, to_code)
+
+            # Update shared_data with the latest OCR results
+            with datalock:
+                shared_data = data
+
+    # Start the read_worker thread
+    worker_thread = threading.Thread(target=read_worker)
+    worker_thread.start()
 
     cam = cv2.VideoCapture(0)
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(output_file, fourcc, fps,
                           (frame_width, frame_height))
 
-    # Shared variable for predictions
-    shared_predictions = None
-    lock = threading.Lock()
-
-    def prediction_worker():
-        nonlocal shared_predictions, detections_to_process
-        while True:
-            with lock:
-                if detections_to_process is None:  # Exit signal
-                    break
-                detections = detections_to_process
-
-            # Run predictions
-            predictions = predict_from_detections(detections, model, processor)
-
-            with lock:
-                shared_predictions = predictions
-
-    # Start the prediction thread
-    detections_to_process = []
-    prediction_thread = threading.Thread(target=prediction_worker)
-    prediction_thread.start()
-
     while True:
         ret, frame = cam.read()
         if not ret:
             break
-
         out.write(frame)
-        img = prepare_img(frame, frame.shape[0])
-        rgb_img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-        detections = detect(frame, img, min_area=50)
 
-        if len(detections) > 0:
-            # print(f"Detected {len(detections)} words")
-            # Update detections for the worker thread
-            with lock:
-                detections_to_process = detections
+        # frame = cv2.resize(frame, (320, 240))
 
-            # Display results with bounding boxes and predicted text
-            with lock:
-                # print(len(shared_predictions), end=' ')
-                if shared_predictions is not None:
-                    for bbox, text in shared_predictions:
-                        # print(f"Detected: {text} at {bbox.x}, {bbox.y}, {bbox.w}, {bbox.h}")
-                        x1, y1, w, h = bbox.x, bbox.y, bbox.w, bbox.h
-                        cv2.rectangle(frame, (x1, y1),
-                                    (x1 + w, y1 + h), (0, 255, 0), 2)
-                        cv2.putText(frame, text, (x1, y1 - 10),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
-        # for detection in detections:
-        #     bbox = detection.bbox
-        #     x1, y1, w, h = bbox.x, bbox.y, bbox.w, bbox.h
-        #     cv2.rectangle(rgb_img, (x1, y1),(x1 + w, y1 + h), (0, 255, 0), 2)
+        # Update shared_input with the current frame
+        with inlock:
+            shared_input = frame.copy()
+
+        # Display the current frame with the last available OCR data
+        with datalock:
+            data = shared_data
+        if data is not None:
+            n_boxes = len(data['level'])
+            for i in range(n_boxes):
+                (x, y, w, h) = (data['left'][i], data['top'][i], data['width'][i], data['height'][i])
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 1)
+                # Use PIL to render text with Polish signs
+                pil_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                draw = ImageDraw.Draw(pil_image)
+                font = ImageFont.truetype("roboto.ttf", 20)  # Ensure the font supports Polish characters
+                draw.text((x, y - 20), data['text'][i], font=font, fill=(255, 0, 0))
+                frame = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+
         cv2.imshow('Camera', frame)
 
         if cv2.waitKey(1) == ord('q'):
             break
 
-    # Signal the prediction thread to exit
-    with lock:
-        detections_to_process = None
-    prediction_thread.join()
+    # Stop the worker thread
+    shared_is_working = False
+    worker_thread.join()
 
     cam.release()
     out.release()
     cv2.destroyAllWindows()
+
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # processor = TrOCRProcessor.from_pretrained('microsoft/trocr-small-handwritten', use_fast=False)
+    # model = VisionEncoderDecoderModel.from_pretrained('microsoft/trocr-small-handwritten').to(device)
+    
+    # # vocab_size = len(Params.vocab) + 2
+    # # model = HandwritingTransformer(
+    # #     input_size=16 * 24,
+    # #     vocab_size=len(Params.vocab)+2,
+    # #     d_model=128,
+    # #     nhead_en=1,
+    # #     num_layers_en=1,
+    # #     nhead_de=1,
+    # #     num_layers_de=1,
+    # #     dropout=0.2
+    # # ).to(device)
+    # # model.load_state_dict(torch.load(
+    # #     'handwriting_transformer.pth', map_location=device))
+    # # model.eval()
+    # # transform = transforms.Compose([
+    # #     transforms.Grayscale(num_output_channels=1),
+    # #     transforms.Resize((64, 128)),
+    # #     transforms.ToTensor(),
+    # #     transforms.Lambda(lambda x: 1.0 - x),
+    # #     transforms.Normalize((0.5,), (0.5,)),
+    # # ])
+
+    # cam = cv2.VideoCapture(0)
+    # fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    # out = cv2.VideoWriter(output_file, fourcc, fps,
+    #                       (frame_width, frame_height))
+
+    # # Shared variable for predictions
+    # shared_predictions = None
+    # lock = threading.Lock()
+
+    # def prediction_worker():
+    #     nonlocal shared_predictions, detections_to_process
+    #     while True:
+    #         with lock:
+    #             if detections_to_process is None:  # Exit signal
+    #                 break
+    #             detections = detections_to_process
+
+    #         # Run predictions
+    #         predictions = predict_from_detections(detections, model, processor)
+
+    #         with lock:
+    #             shared_predictions = predictions
+
+    # # Start the prediction thread
+    # detections_to_process = []
+    # prediction_thread = threading.Thread(target=prediction_worker)
+    # prediction_thread.start()
+
+    # while True:
+    #     ret, frame = cam.read()
+    #     if not ret:
+    #         break
+
+    #     out.write(frame)
+    #     img = prepare_img(frame, frame.shape[0])
+    #     rgb_img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    #     detections = detect(frame, img, min_area=500)
+
+    #     if len(detections) > 0:
+    #         # print(f"Detected {len(detections)} words")
+    #         # Update detections for the worker thread
+    #         with lock:
+    #             detections_to_process = detections
+
+    #         # Display results with bounding boxes and predicted text
+    #         with lock:
+    #             # print(len(shared_predictions), end=' ')
+    #             if shared_predictions is not None:
+    #                 for bbox, text in shared_predictions:
+    #                     # print(f"Detected: {text} at {bbox.x}, {bbox.y}, {bbox.w}, {bbox.h}")
+    #                     x1, y1, w, h = bbox.x, bbox.y, bbox.w, bbox.h
+    #                     cv2.rectangle(frame, (x1, y1),
+    #                                 (x1 + w, y1 + h), (0, 255, 0), 2)
+    #                     cv2.putText(frame, text, (x1, y1 - 10),
+    #                                 cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+    #     # for detection in detections:
+    #     #     bbox = detection.bbox
+    #     #     x1, y1, w, h = bbox.x, bbox.y, bbox.w, bbox.h
+    #     #     cv2.rectangle(rgb_img, (x1, y1),(x1 + w, y1 + h), (0, 255, 0), 2)
+    #     cv2.imshow('Camera', frame)
+
+    #     if cv2.waitKey(1) == ord('q'):
+    #         break
+
+    # # Signal the prediction thread to exit
+    # with lock:
+    #     detections_to_process = None
+    # prediction_thread.join()
+
+    # cam.release()
+    # out.release()
+    # cv2.destroyAllWindows()
 
 
 def main():
