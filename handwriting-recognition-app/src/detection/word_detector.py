@@ -22,16 +22,15 @@ def prepare_img(image: np.ndarray, target_height: int) -> np.ndarray:
 
     return eroded
 
-def detect(image: np.ndarray, min_area: int) -> List:
+def detect(original_image,image: np.ndarray, min_area: int) -> List:
     # Find contours
     contours, _ = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     detections = []
-    rgb_img = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
     for contour in contours:
         area = cv2.contourArea(contour)
         if area > min_area:
             x, y, w, h = cv2.boundingRect(contour)  
-            detections.append(Detection(bbox=BoundingBox(x, y, w, h), img=rgb_img[y:y+h, x:x+w]))
+            detections.append(Detection(bbox=BoundingBox(x, y, w, h), img=original_image[y:y+h, x:x+w]))
 
     return detections
 

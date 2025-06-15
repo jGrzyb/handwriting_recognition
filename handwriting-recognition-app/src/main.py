@@ -25,7 +25,7 @@ def predict_from_detections(detections, model, processor):
     with torch.no_grad():
         for det in detections:
             image = Image.fromarray(det.img)
-            print(image)
+            # print(image)
             pixel_values = processor(image, return_tensors='pt').pixel_values.to(device)
 
             generated_ids = model.generate(pixel_values)
@@ -126,7 +126,8 @@ def capture_video(output_file='output.mp4', frame_width=640, frame_height=480, f
 
         out.write(frame)
         img = prepare_img(frame, frame.shape[0])
-        detections = detect(img, min_area=50)
+        rgb_img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+        detections = detect(frame, img, min_area=50)
 
         if len(detections) > 0:
             # print(f"Detected {len(detections)} words")
@@ -146,9 +147,9 @@ def capture_video(output_file='output.mp4', frame_width=640, frame_height=480, f
                         cv2.putText(frame, text, (x1, y1 - 10),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
         # for detection in detections:
-        #     bhox = detection.bhox
+        #     bbox = detection.bbox
         #     x1, y1, w, h = bbox.x, bbox.y, bbox.w, bbox.h
-        #     cv2.rectangle(frame, (x1, y1),(x1 + w, y1 + h), (0, 255, 0), 2)
+        #     cv2.rectangle(rgb_img, (x1, y1),(x1 + w, y1 + h), (0, 255, 0), 2)
         cv2.imshow('Camera', frame)
 
         if cv2.waitKey(1) == ord('q'):
