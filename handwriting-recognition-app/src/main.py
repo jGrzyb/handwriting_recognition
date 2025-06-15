@@ -25,6 +25,7 @@ def predict_from_detections(detections, model, processor):
     with torch.no_grad():
         for det in detections:
             image = Image.fromarray(det.img)
+            print(image)
             pixel_values = processor(image, return_tensors='pt').pixel_values.to(device)
 
             generated_ids = model.generate(pixel_values)
@@ -65,8 +66,8 @@ def predict_from_detections(detections, model, processor):
 def capture_video(output_file='output.mp4', frame_width=640, frame_height=480, fps=20.0):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    processor = TrOCRProcessor.from_pretrained('microsoft/trocr-base-handwritten')
-    model = VisionEncoderDecoderModel.from_pretrained('microsoft/trocr-base-handwritten').to(device)
+    processor = TrOCRProcessor.from_pretrained('microsoft/trocr-small-handwritten', use_fast=False)
+    model = VisionEncoderDecoderModel.from_pretrained('microsoft/trocr-small-handwritten').to(device)
     
     # vocab_size = len(Params.vocab) + 2
     # model = HandwritingTransformer(
@@ -125,25 +126,30 @@ def capture_video(output_file='output.mp4', frame_width=640, frame_height=480, f
 
         out.write(frame)
         img = prepare_img(frame, frame.shape[0])
-        detections = detect(img, min_area=100)
+        detections = detect(img, min_area=50)
 
-        if len(detections) != 0:
+        if False: #if len(detections) > 0:
+            # print(f"Detected {len(detections)} words")
             # Update detections for the worker thread
             with lock:
                 detections_to_process = detections
 
             # Display results with bounding boxes and predicted text
             with lock:
+                # print(len(shared_predictions), end=' ')
                 if shared_predictions is not None:
                     for bbox, text in shared_predictions:
-                        print(f"Detected: {text} at {bbox.x}, {bbox.y}, {bbox.w}, {bbox.h}")
+                        # print(f"Detected: {text} at {bbox.x}, {bbox.y}, {bbox.w}, {bbox.h}")
                         x1, y1, w, h = bbox.x, bbox.y, bbox.w, bbox.h
                         cv2.rectangle(frame, (x1, y1),
                                     (x1 + w, y1 + h), (0, 255, 0), 2)
                         cv2.putText(frame, text, (x1, y1 - 10),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
-
-        cv2.imshow('Camera', img)
+        for detection in detections:
+            bhox = detection.bhox
+            x1, y1, w, h = bbox.x, bbox.y, bbox.w, bbox.h
+            cv2.rectangle(frame, (x1, y1),(x1 + w, y1 + h), (0, 255, 0), 2)
+        cv2.imshow('Camera', frame)
 
         if cv2.waitKey(1) == ord('q'):
             break
