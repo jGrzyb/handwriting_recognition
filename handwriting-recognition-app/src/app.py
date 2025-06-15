@@ -24,6 +24,7 @@ from utils.history import TrainingHistory
 from utils.params import Params
 from utils.progress_bar import ProgressBar
 
+
 def predict_from_detections(detections, model, processor):
     model.eval()
     results = []
@@ -46,9 +47,9 @@ class UltraKillerAPP:
         self.master = master
         master.title("Image Processing App")
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.processor = TrOCRProcessor.from_pretrained('microsoft/trocr-small-handwritten', use_fast=True)
-        self.model = VisionEncoderDecoderModel.from_pretrained('microsoft/trocr-small-handwritten').to(self.device)
+        # self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # self.processor = TrOCRProcessor.from_pretrained('microsoft/trocr-small-handwritten', use_fast=True)
+        # self.model = VisionEncoderDecoderModel.from_pretrained('microsoft/trocr-small-handwritten').to(self.device)
 
         self.camera_on = False
         self.cap = None
@@ -105,7 +106,7 @@ class UltraKillerAPP:
             self.stop_camera() # Stop camera if it's running
         
         file_path = filedialog.askopenfilename(
-            filetypes=[("Image Files", "*.png;*.jpg;*.jpeg;*.bmp;*.tiff")]
+            filetypes=[("Image Files", "*.png *.jpg *.jpeg *.bmp *.tiff")]
         )
         if file_path:
             image = cv2.imread(file_path)
@@ -150,8 +151,6 @@ class UltraKillerAPP:
         # Clear displayed images
         self.original_image_label.config(image='')
         self.original_image_label.image = None
-        self.processed_image_label.config(image='')
-        self.processed_image_label.image = None
 
 
     def update_camera_feed(self):
@@ -246,12 +245,12 @@ class UltraKillerAPP:
         if self.image_to_predict is None:
             messagebox.showwarning("Warning", "No image to process. Please load an image or take a photo first.")
             return
-        img = prepare_img(self.image_to_predict, self.image_to_predict.shape[0])
+        # img = prepare_img(self.image_to_predict, self.image_to_predict.shape[0])
 
 
-        data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
+        data = pytesseract.image_to_data(self.image_to_predict, output_type=pytesseract.Output.DICT)
         n_boxes = len(data['text'])
-        current_line = data['line_num'][0] if n_boxes > 0 else -1
+        current_line = -1
         line_words = []
         text = ""
         self.display_text("")
@@ -261,8 +260,11 @@ class UltraKillerAPP:
                 if word:
                     if data['line_num'][i] != current_line:
                         # End of the previous line
-                        text += " ".join(line_words) + "\n"
+                        text += "\n"
                         current_line = data['line_num'][i]
+                    else:
+                        text += ' '
+                    text += word
 
         self.display_text(text)  # Display the detected text in the text area
 
