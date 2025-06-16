@@ -123,7 +123,7 @@ def capture_video(output_file='output.mp4', frame_width=640, frame_height=480, f
             break
         out.write(frame)
 
-        # frame = cv2.resize(frame, (320, 240))
+        frame = cv2.resize(frame, (320, 240))
 
         # Update shared_input with the current frame
         with inlock:
@@ -140,11 +140,11 @@ def capture_video(output_file='output.mp4', frame_width=640, frame_height=480, f
                 # Use PIL to render text with Polish signs
                 pil_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
                 draw = ImageDraw.Draw(pil_image)
-                font = ImageFont.truetype("roboto.ttf", 20)  # Ensure the font supports Polish characters
+                font = ImageFont.truetype("roboto.ttf", 10)  # Ensure the font supports Polish characters
                 draw.text((x, y - 20), data['text'][i], font=font, fill=(255, 0, 0))
                 frame = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
 
-        cv2.imshow('Camera', frame)
+        cv2.imshow('Camera', cv2.resize(frame, (640, 480)))
 
         if cv2.waitKey(1) == ord('q'):
             break
